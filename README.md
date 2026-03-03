@@ -20,20 +20,27 @@ A Rust-powered tool that fetches real star data from ESA's Gaia DR3 catalog (1.8
 
 For comparison, DBSCAN on 500K points takes **hours** in Python's scikit-learn.
 
-## Quick Start
+## Try it now
+
+Clone the repo and open `web/index.html` in your browser — a 5,000-star demo dataset is included. No build step needed for the visualization.
 
 ```bash
-# Build
+git clone https://github.com/Clemens865/Milky-Way-Visualization.git
+open Milky-Way-Visualization/web/index.html
+```
+
+## Building the Rust CLI (for analysis & larger datasets)
+
+```bash
 cargo build --release
 
-# Fetch stars and export to binary (500K stars within 500 pc)
+# Fetch 500K stars within 500 pc and export to binary
 ./target/release/undiscovered stars export -d 500 -l 500000 -o web/stars.bin
 
 # For 10M stars (compact binary, ~150 MB)
 ./target/release/undiscovered stars export -d 1000 -l 10000000 -o web/stars_10m.cbin
 
-# Open the 3D visualization
-open web/index.html
+# Reload web/index.html — it auto-detects the larger dataset
 ```
 
 ## Analysis Commands
