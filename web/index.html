@@ -293,21 +293,37 @@ async function loadBinary(url) {
   }
 }
 
-// Try compact first, then full, then JSON
-try { await loadBinary('stars_10m.cbin'); }
-catch {
-  try { await loadBinary('stars.bin'); }
-  catch {
-    const json = await (await fetch('stars.json')).json();
-    starCount = json.length;
-    sx = new Float32Array(starCount); sy = new Float32Array(starCount); sz = new Float32Array(starCount);
-    svx = new Float32Array(starCount); svy = new Float32Array(starCount); svz = new Float32Array(starCount);
-    stemp = new Float32Array(starCount); smag = new Float32Array(starCount); sdist = new Float32Array(starCount);
-    for (let i = 0; i < starCount; i++) {
-      const s = json[i];
-      sx[i] = s.x; sy[i] = s.y; sz[i] = s.z; stemp[i] = s.temp; smag[i] = s.mag; sdist[i] = s.dist_pc;
+// GitHub Release URLs for full datasets
+const RELEASE = 'https://github.com/Clemens865/Milky-Way-Visualization/releases/download/v1.0';
+
+// Loading cascade: local files first (for dev), then release assets, then bundled JSON demo
+const sources = [
+  'stars_10m.cbin',                    // local 10M (dev)
+  'stars.bin',                         // local 500K (dev)
+  `${RELEASE}/stars.bin`,              // release 500K (19 MB)
+  'stars.json',                        // bundled 5K demo (fallback)
+];
+
+let loaded = false;
+for (const src of sources) {
+  if (loaded) break;
+  try {
+    if (src.endsWith('.json')) {
+      const json = await (await fetch(src)).json();
+      starCount = json.length;
+      sx = new Float32Array(starCount); sy = new Float32Array(starCount); sz = new Float32Array(starCount);
+      svx = new Float32Array(starCount); svy = new Float32Array(starCount); svz = new Float32Array(starCount);
+      stemp = new Float32Array(starCount); smag = new Float32Array(starCount); sdist = new Float32Array(starCount);
+      for (let i = 0; i < starCount; i++) {
+        const s = json[i];
+        sx[i] = s.x; sy[i] = s.y; sz[i] = s.z; stemp[i] = s.temp; smag[i] = s.mag; sdist[i] = s.dist_pc;
+      }
+      loaded = true;
+    } else {
+      await loadBinary(src);
+      loaded = true;
     }
-  }
+  } catch { /* try next source */ }
 }
 
 const isLarge = starCount > 1_000_000;

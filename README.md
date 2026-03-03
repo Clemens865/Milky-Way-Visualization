@@ -22,7 +22,9 @@ For comparison, DBSCAN on 500K points takes **hours** in Python's scikit-learn.
 
 ## Try it now
 
-Clone the repo and open `web/index.html` in your browser — a 5,000-star demo dataset is included. No build step needed for the visualization.
+**[Live Demo](https://clemens865.github.io/Milky-Way-Visualization/)** — 501,359 real stars, loaded directly in your browser. Drag to rotate, scroll to zoom, click any star for details, press T for time-travel.
+
+Or clone and open locally:
 
 ```bash
 git clone https://github.com/Clemens865/Milky-Way-Visualization.git
