@@ -1,0 +1,16 @@
+/target
+/data/cache/*.json
+
+# Large binary star data (regenerate with: cargo run --release -- stars export)
+web/stars.bin
+web/stars.json
+web/stars_10m.cbin
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Playwright MCP
+.playwright-mcp/

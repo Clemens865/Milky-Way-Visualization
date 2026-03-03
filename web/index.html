@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Undiscovered — Stellar Neighborhood</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #ccc; font-family: 'SF Mono', 'Fira Code', monospace; overflow: hidden; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 0; left: 0; padding: 16px;
+    pointer-events: none; z-index: 10;
+  }
+  #hud h1 { font-size: 14px; color: #fff; margin-bottom: 4px; }
+  #hud p { font-size: 11px; color: #888; line-height: 1.6; }
+  #hud .stat { color: #aaa; }
+  #info {
+    position: fixed; bottom: 16px; left: 16px;
+    font-size: 11px; color: #666; pointer-events: none; z-index: 10;
+  }
+  #tooltip {
+    position: fixed; display: none;
+    background: rgba(0,0,0,0.85); border: 1px solid #444;
+    padding: 8px 12px; border-radius: 4px;
+    font-size: 11px; pointer-events: none; z-index: 20;
+    max-width: 250px;
+  }
+  #tooltip .label { color: #fff; font-weight: bold; margin-bottom: 4px; }
+  #tooltip .detail { color: #aaa; }
+  #legend {
+    position: fixed; top: 16px; right: 16px;
+    font-size: 11px; pointer-events: none; z-index: 10;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  #controls {
+    position: fixed; bottom: 16px; right: 16px;
+    z-index: 10; display: flex; gap: 8px;
+  }
+  #controls button {
+    background: rgba(255,255,255,0.1); border: 1px solid #444;
+    color: #ccc; padding: 6px 12px; border-radius: 4px;
+    cursor: pointer; font-family: inherit; font-size: 11px;
+  }
+  #controls button:hover { background: rgba(255,255,255,0.2); }
+  #controls button.active { border-color: #6af; color: #6af; }
+  /* Star detail panel */
+  #star-panel {
+    position: fixed; top: 50%; right: 16px; transform: translateY(-50%);
+    background: rgba(0,0,0,0.9); border: 1px solid #555;
+    padding: 16px; border-radius: 6px; z-index: 15;
+    font-size: 11px; min-width: 220px; display: none;
+  }
+  #star-panel .close { position: absolute; top: 6px; right: 10px; cursor: pointer; color: #888; }
+  #star-panel .close:hover { color: #fff; }
+  #star-panel h3 { font-size: 13px; color: #fff; margin-bottom: 8px; }
+  #star-panel .row { display: flex; justify-content: space-between; padding: 2px 0; }
+  #star-panel .row .k { color: #888; }
+  #star-panel .row .v { color: #ddd; }
+  /* Filter bar */
+  #filter-bar {
+    position: fixed; top: 100px; left: 16px;
+    background: rgba(0,0,0,0.85); border: 1px solid #444;
+    padding: 12px; border-radius: 6px; z-index: 15;
+    font-size: 11px; display: none; min-width: 200px;
+  }
+  #filter-bar label { color: #888; display: block; margin: 6px 0 2px; }
+  #filter-bar input[type=range] { width: 100%; accent-color: #6af; }
+  #filter-bar .val { color: #aaa; float: right; }
+  /* Time travel */
+  #time-bar {
+    position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); border: 1px solid #444;
+    padding: 10px 20px; border-radius: 6px; z-index: 15;
+    font-size: 11px; display: none; text-align: center; min-width: 400px;
+  }
+  #time-bar .year { font-size: 18px; color: #6af; font-weight: bold; margin-bottom: 6px; }
+  #time-bar input[type=range] { width: 100%; accent-color: #6af; }
+  #time-bar .time-btns { display: flex; gap: 6px; justify-content: center; margin-top: 6px; }
+  #time-bar .time-btns button {
+    background: rgba(255,255,255,0.1); border: 1px solid #444;
+    color: #ccc; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; font-family: inherit; font-size: 11px;
+  }
+  #time-bar .time-btns button:hover { background: rgba(255,255,255,0.2); }
+  #time-bar .time-btns button.active { border-color: #6af; color: #6af; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <h1>UNDISCOVERED</h1>
+  <p>Stellar Neighborhood — Gaia DR3</p>
+  <p class="stat" id="star-count"></p>
+  <p class="stat" id="range-info"></p>
+  <p class="stat" id="visible-count"></p>
+</div>
+
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#9bb0ff"></div> O/B — Hot blue</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#cad7ff"></div> A — White</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fff4e8"></div> F — Yellow-white</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffd56a"></div> G — Sun-like</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffaa33"></div> K — Orange</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff6633"></div> M — Red dwarf</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffff00; width:12px; height:12px"></div> Sun (you are here)</div>
+</div>
+
+<div id="tooltip"><div class="label"></div><div class="detail"></div></div>
+
+<div id="star-panel">
+  <span class="close" onclick="closePanel()">[x]</span>
+  <h3 id="panel-title"></h3>
+  <div id="panel-body"></div>
+</div>
+
+<div id="filter-bar">
+  <strong style="color:#6af">Filters</strong>
+  <label>Max distance <span class="val" id="filt-dist-val"></span></label>
+  <input type="range" id="filt-dist" min="1" max="500" value="500">
+  <label>Min temp (K) <span class="val" id="filt-temp-val"></span></label>
+  <input type="range" id="filt-temp" min="0" max="30000" step="500" value="0">
+  <label>Spectral class</label>
+  <select id="filt-class" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:3px;">
+    <option value="all">All</option>
+    <option value="O">O (blue)</option>
+    <option value="B">B (blue-white)</option>
+    <option value="A">A (white)</option>
+    <option value="F">F (yellow-white)</option>
+    <option value="G">G (Sun-like)</option>
+    <option value="K">K (orange)</option>
+    <option value="M">M (red dwarf)</option>
+  </select>
+</div>
+
+<div id="time-bar">
+  <div class="year" id="year-display">Year 2026 AD</div>
+  <input type="range" id="time-slider" min="-100000" max="100000" value="0" step="100">
+  <div class="time-btns">
+    <button onclick="timeJump(-10000)">&lt;&lt; -10K</button>
+    <button onclick="timeJump(-1000)">&lt; -1K</button>
+    <button id="btn-play" onclick="togglePlay()">Play</button>
+    <button onclick="timeJump(1000)">+1K &gt;</button>
+    <button onclick="timeJump(10000)">+10K &gt;&gt;</button>
+    <button onclick="timeReset()">Now</button>
+  </div>
+  <div style="color:#666;margin-top:4px">Speed: <select id="time-speed" style="background:#111;color:#ccc;border:1px solid #444;padding:2px;">
+    <option value="100">100 yr/s</option>
+    <option value="1000" selected>1,000 yr/s</option>
+    <option value="5000">5,000 yr/s</option>
+    <option value="10000">10,000 yr/s</option>
+  </select></div>
+</div>
+
+<div id="info">
+  Drag to rotate · Scroll to zoom · Click star · [T] Time travel · [F] Filter · [G] Grid · [Space] Play/Pause
+</div>
+
+<div id="controls">
+  <button id="btn-grid" class="active" onclick="toggleGrid()">Grid</button>
+  <button id="btn-labels" class="active" onclick="toggleLabels()">Labels</button>
+  <button id="btn-time" onclick="toggleTime()">Time</button>
+  <button id="btn-filter" onclick="toggleFilter()">Filter</button>
+  <button id="btn-reset" onclick="resetCamera()">Reset View</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(30, 20, 40);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.maxDistance = 800;
+
+function tempToColor(temp) {
+  if (!temp || temp === 0) return new THREE.Color(0.6, 0.6, 0.6);
+  if (temp >= 30000) return new THREE.Color(0.608, 0.690, 1.0);
+  if (temp >= 10000) return new THREE.Color(0.608, 0.690, 1.0);
+  if (temp >= 7500) return new THREE.Color(0.792, 0.843, 1.0);
+  if (temp >= 6000) return new THREE.Color(1.0, 0.957, 0.910);
+  if (temp >= 5200) return new THREE.Color(1.0, 0.835, 0.416);
+  if (temp >= 3700) return new THREE.Color(1.0, 0.667, 0.200);
+  if (temp >= 2400) return new THREE.Color(1.0, 0.400, 0.200);
+  return new THREE.Color(1.0, 0.300, 0.150);
+}
+
+function starSize(mag) {
+  if (!mag && mag !== 0) return 1.5;
+  return Math.max(0.8, Math.min(6, 4 - mag * 0.3));
+}
+
+function spectralClass(temp) {
+  if (!temp || temp === 0) return '?';
+  if (temp >= 30000) return 'O (blue)';
+  if (temp >= 10000) return 'B (blue-white)';
+  if (temp >= 7500) return 'A (white)';
+  if (temp >= 6000) return 'F (yellow-white)';
+  if (temp >= 5200) return 'G (Sun-like)';
+  if (temp >= 3700) return 'K (orange)';
+  if (temp >= 2400) return 'M (red dwarf)';
+  return 'L/T (cool)';
+}
+
+function spectralLetter(temp) {
+  if (!temp || temp === 0) return '?';
+  if (temp >= 30000) return 'O';
+  if (temp >= 10000) return 'B';
+  if (temp >= 7500) return 'A';
+  if (temp >= 6000) return 'F';
+  if (temp >= 5200) return 'G';
+  if (temp >= 3700) return 'K';
+  if (temp >= 2400) return 'M';
+  return 'L';
+}
+
+// ── Load star data ──
+// For large datasets (>1M), we use SoA (struct-of-arrays) for memory efficiency
+// instead of AoS (array-of-structs) which creates millions of small objects.
+let starCount = 0, hasVelocity = false;
+let sx, sy, sz, svx, svy, svz, stemp, smag, sdist; // typed arrays (SoA)
+
+async function loadBinary(url) {
+  document.getElementById('star-count').textContent = 'Loading...';
+  const resp = await fetch(url);
+  const buf = await resp.arrayBuffer();
+  const view = new DataView(buf);
+  const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+  const count = view.getUint32(4, true);
+  starCount = count;
+
+  sx = new Float32Array(count); sy = new Float32Array(count); sz = new Float32Array(count);
+  svx = new Float32Array(count); svy = new Float32Array(count); svz = new Float32Array(count);
+  stemp = new Float32Array(count); smag = new Float32Array(count); sdist = new Float32Array(count);
+
+  if (magic === 'STR3') {
+    // Compact: 16 bytes/star, i16 quantized
+    hasVelocity = true;
+    const posScale = view.getFloat32(8, true);
+    const velScale = view.getFloat32(12, true);
+    const HEADER = 16, STRIDE = 16;
+    for (let i = 0; i < count; i++) {
+      const off = HEADER + i * STRIDE;
+      const px = view.getInt16(off, true) / 32767.0 * posScale;
+      const py = view.getInt16(off+2, true) / 32767.0 * posScale;
+      const pz = view.getInt16(off+4, true) / 32767.0 * posScale;
+      sx[i] = px; sy[i] = py; sz[i] = pz;
+      svx[i] = view.getInt16(off+6, true) / 32767.0 * velScale;
+      svy[i] = view.getInt16(off+8, true) / 32767.0 * velScale;
+      svz[i] = view.getInt16(off+10, true) / 32767.0 * velScale;
+      stemp[i] = view.getUint16(off+12, true);
+      smag[i] = view.getInt16(off+14, true) / 100.0;
+      sdist[i] = Math.sqrt(px*px + py*py + pz*pz);
+    }
+  } else if (magic === 'STR2') {
+    hasVelocity = true;
+    const STRIDE = 40;
+    for (let i = 0; i < count; i++) {
+      const off = 8 + i * STRIDE;
+      sx[i] = view.getFloat32(off, true); sy[i] = view.getFloat32(off+4, true); sz[i] = view.getFloat32(off+8, true);
+      svx[i] = view.getFloat32(off+12, true); svy[i] = view.getFloat32(off+16, true); svz[i] = view.getFloat32(off+20, true);
+      stemp[i] = view.getFloat32(off+24, true); smag[i] = view.getFloat32(off+28, true);
+      sdist[i] = view.getFloat32(off+36, true);
+    }
+  } else {
+    // v1 (STAR): 28 bytes, no velocity
+    const STRIDE = 28;
+    for (let i = 0; i < count; i++) {
+      const off = 8 + i * STRIDE;
+      sx[i] = view.getFloat32(off, true); sy[i] = view.getFloat32(off+4, true); sz[i] = view.getFloat32(off+8, true);
+      stemp[i] = view.getFloat32(off+12, true); smag[i] = view.getFloat32(off+16, true);
+      sdist[i] = view.getFloat32(off+24, true);
+    }
+  }
+}
+
+// Try compact first, then full, then JSON
+try { await loadBinary('stars_10m.cbin'); }
+catch {
+  try { await loadBinary('stars.bin'); }
+  catch {
+    const json = await (await fetch('stars.json')).json();
+    starCount = json.length;
+    sx = new Float32Array(starCount); sy = new Float32Array(starCount); sz = new Float32Array(starCount);
+    svx = new Float32Array(starCount); svy = new Float32Array(starCount); svz = new Float32Array(starCount);
+    stemp = new Float32Array(starCount); smag = new Float32Array(starCount); sdist = new Float32Array(starCount);
+    for (let i = 0; i < starCount; i++) {
+      const s = json[i];
+      sx[i] = s.x; sy[i] = s.y; sz[i] = s.z; stemp[i] = s.temp; smag[i] = s.mag; sdist[i] = s.dist_pc;
+    }
+  }
+}
+
+const isLarge = starCount > 1_000_000;
+let maxDist = 0;
+for (let i = 0; i < starCount; i++) if (sdist[i] > maxDist) maxDist = sdist[i];
+
+document.getElementById('star-count').textContent = `${starCount.toLocaleString()} stars loaded`;
+document.getElementById('range-info').textContent = `Range: ${maxDist.toFixed(0)} pc (${(maxDist * 3.26).toFixed(0)} ly)`;
+
+// ── Build star points ──
+const SCALE = maxDist > 200 ? 0.1 : maxDist > 50 ? 0.2 : 0.3;
+const positions = new Float32Array(starCount * 3);
+const colors = new Float32Array(starCount * 3);
+const sizes = new Float32Array(starCount);
+
+for (let i = 0; i < starCount; i++) {
+  positions[i * 3] = sx[i] * SCALE;
+  positions[i * 3 + 1] = sz[i] * SCALE;
+  positions[i * 3 + 2] = sy[i] * SCALE;
+  const col = tempToColor(stemp[i]);
+  colors[i * 3] = col.r;
+  colors[i * 3 + 1] = col.g;
+  colors[i * 3 + 2] = col.b;
+  sizes[i] = isLarge ? Math.max(0.3, Math.min(3, 2 - smag[i] * 0.15)) : starSize(smag[i]);
+}
+
+const starGeometry = new THREE.BufferGeometry();
+starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+starGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+const starMaterial = new THREE.ShaderMaterial({
+  uniforms: { pixelRatio: { value: renderer.getPixelRatio() } },
+  vertexShader: `
+    attribute float size;
+    varying vec3 vColor;
+    uniform float pixelRatio;
+    void main() {
+      vColor = color;
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = size * pixelRatio * (200.0 / -mvPosition.z);
+      gl_PointSize = clamp(gl_PointSize, 1.0, 20.0);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vColor;
+    void main() {
+      float d = length(gl_PointCoord - vec2(0.5));
+      if (d > 0.5) discard;
+      float glow = 1.0 - smoothstep(0.0, 0.5, d);
+      gl_FragColor = vec4(vColor * glow, glow);
+    }
+  `,
+  vertexColors: true, transparent: true, depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+
+const starPoints = new THREE.Points(starGeometry, starMaterial);
+scene.add(starPoints);
+
+// ── Sun ──
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffff00 })));
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.15 })));
+
+// ── Grid ──
+const gridGroup = new THREE.Group();
+gridGroup.add(new THREE.GridHelper(maxDist * SCALE * 2, 20, 0x222233, 0x111122));
+const rings = maxDist > 500 ? [100, 250, 500, 1000] : maxDist > 200 ? [50, 100, 200, 500] : [10, 25, 50, 100];
+rings.forEach(r => {
+  if (r > maxDist) return;
+  const mesh = new THREE.Mesh(
+    new THREE.RingGeometry(r * SCALE - 0.05, r * SCALE + 0.05, 64),
+    new THREE.MeshBasicMaterial({ color: 0x334455, side: THREE.DoubleSide, transparent: true, opacity: 0.3 })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  gridGroup.add(mesh);
+});
+scene.add(gridGroup);
+
+// ── Labels ──
+const labelGroup = new THREE.Group();
+function createLabel(text, position, color = '#fff', size = 0.6) {
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  c.width = 256; c.height = 64;
+  ctx.font = 'bold 28px SF Mono, monospace';
+  ctx.fillStyle = color; ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 40);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.7 }));
+  sprite.position.copy(position);
+  sprite.scale.set(size * 4, size, 1);
+  return sprite;
+}
+labelGroup.add(createLabel('Sol', new THREE.Vector3(0, 1.2, 0), '#ffff00', 0.8));
+rings.forEach(r => { if (r <= maxDist) labelGroup.add(createLabel(`${r} pc`, new THREE.Vector3(r * SCALE + 1, 0.3, 0), '#556677', 0.5)); });
+scene.add(labelGroup);
+
+// ── Background stars ──
+const bgCount = 3000, bgPos = new Float32Array(bgCount * 3), bgCol = new Float32Array(bgCount * 3);
+for (let i = 0; i < bgCount; i++) {
+  const theta = Math.random() * Math.PI * 2, phi = Math.acos(2 * Math.random() - 1), r = 300 + Math.random() * 500;
+  bgPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+  bgPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+  bgPos[i*3+2] = r * Math.cos(phi);
+  const b = 0.2 + Math.random() * 0.3;
+  bgCol[i*3] = b; bgCol[i*3+1] = b; bgCol[i*3+2] = b + Math.random() * 0.1;
+}
+const bgGeo = new THREE.BufferGeometry();
+bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
+bgGeo.setAttribute('color', new THREE.BufferAttribute(bgCol, 3));
+scene.add(new THREE.Points(bgGeo, new THREE.PointsMaterial({ size: 0.5, vertexColors: true, transparent: true, opacity: 0.6 })));
+
+// ── Raycaster (disabled for large datasets — too slow for linear scan) ──
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points.threshold = isLarge ? 0.3 : 0.5;
+const mouse = new THREE.Vector2();
+const tooltip = document.getElementById('tooltip');
+let hoveredIdx = -1;
+let lastRaycast = 0;
+
+const selRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.3, 0.5, 32),
+  new THREE.MeshBasicMaterial({ color: 0x66aaff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+);
+selRing.visible = false;
+scene.add(selRing);
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  // Throttle raycasting for large datasets
+  const now = performance.now();
+  if (isLarge && now - lastRaycast < 100) return;
+  lastRaycast = now;
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObject(starPoints);
+  if (hit.length > 0) {
+    hoveredIdx = hit[0].index;
+    const ly = (sdist[hoveredIdx] * 3.26156).toFixed(1);
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 15) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+    tooltip.querySelector('.label').textContent = spectralClass(stemp[hoveredIdx]);
+    tooltip.querySelector('.detail').innerHTML =
+      `${ly} ly · ${stemp[hoveredIdx] ? stemp[hoveredIdx].toFixed(0) + 'K' : '?'} · mag ${smag[hoveredIdx]?.toFixed(1) ?? '?'}`;
+    renderer.domElement.style.cursor = 'crosshair';
+  } else {
+    hoveredIdx = -1;
+    tooltip.style.display = 'none';
+    renderer.domElement.style.cursor = 'grab';
+  }
+});
+
+renderer.domElement.addEventListener('click', () => {
+  if (hoveredIdx < 0) return;
+  const i = hoveredIdx;
+  const ly = sdist[i] * 3.26156;
+  const absMag = smag[i] && sdist[i] > 0 ? smag[i] - 5 * Math.log10(sdist[i] / 10) : null;
+  const lum = absMag != null ? Math.pow(10, (4.83 - absMag) / 2.5) : null;
+  const speed = Math.sqrt(svx[i]**2 + svy[i]**2 + svz[i]**2);
+  const speedKms = speed / 1.0227e-6; // pc/yr → km/s
+
+  document.getElementById('panel-title').textContent = spectralClass(stemp[i]);
+  document.getElementById('panel-body').innerHTML = [
+    row('Distance', `${ly.toFixed(1)} ly (${sdist[i].toFixed(1)} pc)`),
+    row('Temperature', stemp[i] ? `${stemp[i].toFixed(0)} K` : '?'),
+    row('Apparent mag', smag[i]?.toFixed(2) ?? '?'),
+    row('Absolute mag', absMag?.toFixed(2) ?? '?'),
+    row('Luminosity', lum ? `${lum.toFixed(2)} L\u2609` : '?'),
+    row('Spectral type', spectralLetter(stemp[i])),
+    row('Space velocity', `${speedKms.toFixed(1)} km/s`),
+  ].join('');
+  document.getElementById('star-panel').style.display = 'block';
+
+  selRing.position.set(sx[i] * SCALE, sz[i] * SCALE, sy[i] * SCALE);
+  selRing.lookAt(camera.position);
+  selRing.visible = true;
+});
+
+function row(k, v) { return `<div class="row"><span class="k">${k}</span><span class="v">${v}</span></div>`; }
+window.closePanel = () => { document.getElementById('star-panel').style.display = 'none'; selRing.visible = false; };
+
+// ── Filtering ──
+const filtDist = document.getElementById('filt-dist');
+const filtTemp = document.getElementById('filt-temp');
+const filtClass = document.getElementById('filt-class');
+filtDist.max = Math.ceil(maxDist);
+filtDist.value = Math.ceil(maxDist);
+document.getElementById('filt-dist-val').textContent = `${filtDist.value} pc`;
+document.getElementById('filt-temp-val').textContent = '0 K';
+
+function applyFilters() {
+  const dMax = +filtDist.value;
+  const tMin = +filtTemp.value;
+  const cls = filtClass.value;
+  document.getElementById('filt-dist-val').textContent = `${dMax} pc`;
+  document.getElementById('filt-temp-val').textContent = `${tMin} K`;
+  const posAttr = starGeometry.attributes.position;
+  const sizeAttr = starGeometry.attributes.size;
+  let visible = 0;
+  for (let i = 0; i < starCount; i++) {
+    const show = sdist[i] <= dMax
+      && (tMin === 0 || (stemp[i] && stemp[i] >= tMin))
+      && (cls === 'all' || spectralLetter(stemp[i]) === cls);
+    if (show) {
+      posAttr.setXYZ(i, sx[i] * SCALE, sz[i] * SCALE, sy[i] * SCALE);
+      sizeAttr.setX(i, isLarge ? Math.max(0.3, Math.min(3, 2 - smag[i] * 0.15)) : starSize(smag[i]));
+      visible++;
+    } else {
+      posAttr.setXYZ(i, 0, -9999, 0);
+      sizeAttr.setX(i, 0);
+    }
+  }
+  posAttr.needsUpdate = true;
+  sizeAttr.needsUpdate = true;
+  document.getElementById('visible-count').textContent = visible < starCount ? `Showing ${visible.toLocaleString()} of ${starCount.toLocaleString()}` : '';
+}
+filtDist.addEventListener('input', applyFilters);
+filtTemp.addEventListener('input', applyFilters);
+filtClass.addEventListener('change', applyFilters);
+
+// ── Time travel ──
+let timeOffset = 0; // years from now
+let playing = false;
+let lastFrameTime = 0;
+const timeSlider = document.getElementById('time-slider');
+const yearDisplay = document.getElementById('year-display');
+
+function formatYear(offset) {
+  const year = 2026 + offset;
+  if (year < 0) return `${Math.abs(year).toLocaleString()} BC`;
+  return `Year ${year.toLocaleString()} AD`;
+}
+
+function updateTimeDisplay() {
+  yearDisplay.textContent = formatYear(timeOffset);
+  timeSlider.value = timeOffset;
+}
+
+function applyTime() {
+  const pos = starGeometry.attributes.position.array;
+  for (let i = 0; i < starCount; i++) {
+    pos[i*3]   = (sx[i] + svx[i] * timeOffset) * SCALE;
+    pos[i*3+1] = (sz[i] + svz[i] * timeOffset) * SCALE;
+    pos[i*3+2] = (sy[i] + svy[i] * timeOffset) * SCALE;
+  }
+  starGeometry.attributes.position.needsUpdate = true;
+  updateTimeDisplay();
+}
+
+timeSlider.addEventListener('input', () => {
+  timeOffset = +timeSlider.value;
+  applyTime();
+});
+
+window.timeJump = (delta) => { timeOffset = Math.max(-100000, Math.min(100000, timeOffset + delta)); applyTime(); };
+window.timeReset = () => { timeOffset = 0; playing = false; document.getElementById('btn-play').textContent = 'Play'; applyTime(); };
+window.togglePlay = () => {
+  playing = !playing;
+  document.getElementById('btn-play').textContent = playing ? 'Pause' : 'Play';
+  document.getElementById('btn-play').classList.toggle('active', playing);
+  if (playing) lastFrameTime = performance.now();
+};
+
+// ── Toggle controls ──
+let showGrid = true, showLabels = true, showFilter = false, showTime = false;
+window.toggleGrid = () => { showGrid = !showGrid; gridGroup.visible = showGrid; document.getElementById('btn-grid').classList.toggle('active', showGrid); };
+window.toggleLabels = () => { showLabels = !showLabels; labelGroup.visible = showLabels; document.getElementById('btn-labels').classList.toggle('active', showLabels); };
+window.toggleFilter = () => { showFilter = !showFilter; document.getElementById('filter-bar').style.display = showFilter ? 'block' : 'none'; document.getElementById('btn-filter').classList.toggle('active', showFilter); };
+window.toggleTime = () => { showTime = !showTime; document.getElementById('time-bar').style.display = showTime ? 'block' : 'none'; document.getElementById('btn-time').classList.toggle('active', showTime); };
+window.resetCamera = () => { camera.position.set(30, 20, 40); controls.target.set(0, 0, 0); };
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'g') window.toggleGrid();
+  if (e.key === 'l') window.toggleLabels();
+  if (e.key === 'f') window.toggleFilter();
+  if (e.key === 't') window.toggleTime();
+  if (e.key === 'r') window.resetCamera();
+  if (e.key === ' ') { e.preventDefault(); if (showTime) window.togglePlay(); }
+  if (e.key === 'Escape') window.closePanel();
+});
+
+// ── Resize ──
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ── Animate ──
+(function animate(now) {
+  requestAnimationFrame(animate);
+  if (playing) {
+    const dt = (now - lastFrameTime) / 1000; // seconds
+    lastFrameTime = now;
+    const speed = +document.getElementById('time-speed').value;
+    timeOffset += dt * speed;
+    timeOffset = Math.max(-100000, Math.min(100000, timeOffset));
+    applyTime();
+    if (Math.abs(timeOffset) >= 100000) { playing = false; document.getElementById('btn-play').textContent = 'Play'; }
+  }
+  if (selRing.visible) selRing.lookAt(camera.position);
+  controls.update();
+  renderer.render(scene, camera);
+})(performance.now());
+</script>
+</body>
+</html>
